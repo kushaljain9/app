@@ -718,6 +718,7 @@ const DashboardPage = () => {
 const ProductsPage = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedQuantities, setSelectedQuantities] = useState({});
 
   useEffect(() => {
     fetchProducts();
@@ -727,6 +728,12 @@ const ProductsPage = () => {
     try {
       const response = await axios.get(`${API}/products`);
       setProducts(response.data);
+      // Initialize quantities to 100 for each product
+      const initialQuantities = {};
+      response.data.forEach(product => {
+        initialQuantities[product.id] = 100;
+      });
+      setSelectedQuantities(initialQuantities);
     } catch (error) {
       console.error("Failed to fetch products:", error);
     } finally {
@@ -735,17 +742,31 @@ const ProductsPage = () => {
   };
 
   const addToCart = async (productId) => {
+    const quantity = selectedQuantities[productId] || 100;
+    
+    if (quantity < 100) {
+      alert("Minimum order quantity is 100 bags!");
+      return;
+    }
+
     try {
       const token = localStorage.getItem("token");
       await axios.post(
         `${API}/cart`,
-        { product_id: productId, quantity: 1 },
+        { product_id: productId, quantity: quantity },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      alert("Added to cart!");
+      alert(`Added ${quantity} bags to cart!`);
     } catch (error) {
       alert(error.response?.data?.detail || "Failed to add to cart");
     }
+  };
+
+  const updateQuantity = (productId, quantity) => {
+    setSelectedQuantities(prev => ({
+      ...prev,
+      [productId]: quantity
+    }));
   };
 
   if (loading) {
@@ -763,7 +784,10 @@ const ProductsPage = () => {
     <div className="min-h-screen bg-gray-50">
       <Navigation />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Our Products</h1>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Our Products</h1>
+          <p className="text-red-600 font-semibold mt-2">⚠️ Minimum order: 100 bags per product</p>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map((product) => (
@@ -786,13 +810,45 @@ const ProductsPage = () => {
                   </span>
                   <span className="ml-2 text-sm text-gray-600">Stock: {product.stock}</span>
                 </div>
+                
+                {/* Quantity Selector */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quantity (bags)
+                  </label>
+                  <select
+                    value={selectedQuantities[product.id] || 100}
+                    onChange={(e) => updateQuantity(product.id, parseInt(e.target.value))}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    data-testid={`quantity-select-${product.id}`}
+                  >
+                    <option value={100}>100 bags</option>
+                    <option value={150}>150 bags</option>
+                    <option value={200}>200 bags</option>
+                    <option value={250}>250 bags</option>
+                    <option value={300}>300 bags</option>
+                    <option value={350}>350 bags</option>
+                    <option value={400}>400 bags</option>
+                    <option value={450}>450 bags</option>
+                    <option value={500}>500 bags</option>
+                    <option value={600}>600 bags</option>
+                    <option value={700}>700 bags</option>
+                    <option value={800}>800 bags</option>
+                    <option value={900}>900 bags</option>
+                    <option value={1000}>1000 bags</option>
+                  </select>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Total: ₹{((selectedQuantities[product.id] || 100) * product.price).toFixed(2)}
+                  </p>
+                </div>
+
                 <button
                   onClick={() => addToCart(product.id)}
                   className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center"
                   data-testid={`add-to-cart-${product.id}`}
                 >
                   <ShoppingCart className="h-5 w-5 mr-2" />
-                  Add to Cart
+                  Add {selectedQuantities[product.id] || 100} bags to Cart
                 </button>
               </div>
             </div>
