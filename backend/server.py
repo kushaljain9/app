@@ -536,9 +536,71 @@ async def get_dashboard_stats(dealer: Dealer = Depends(get_current_dealer)):
 @api_router.post("/chat", response_model=ChatResponse)
 async def chat(message: ChatMessage, dealer: Dealer = Depends(get_current_dealer)):
     """Chat with AI assistant"""
-    # Will implement OpenAI integration later
-    # For now, return a simple response
-    return ChatResponse(response="Hello! I'm your cement assistant. I'll be powered by AI soon to help you with orders, products, and more!")
+    try:
+        # Get API key from environment
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        
+        # Get dealer's recent orders for context
+        recent_orders = await db.orders.find(
+            {"dealer_id": dealer.id}, 
+            {"_id": 0}
+        ).sort("created_at", -1).limit(5).to_list(5)
+        
+        # Get all products for context
+        products = await db.products.find({}, {"_id": 0}).to_list(100)
+        
+        # Build context
+        products_info = "\n".join([
+            f"- {p['name']}: ₹{p['price']} per {p['packaging']} (Grade: {p['grade']}, Stock: {p['stock']})"
+            for p in products
+        ])
+        
+        orders_info = ""
+        if recent_orders:
+            orders_info = "Recent orders:\n" + "\n".join([
+                f"- Order {o['order_number']}: ₹{o['total_amount']}, Status: {o['order_status']}"
+                for o in recent_orders[:3]
+            ])
+        
+        # Create system message with context
+        system_message = f"""You are an AI assistant for HumSafar Cement, helping dealer {dealer.name} from {dealer.business_name}.
+
+Available Products:
+{products_info}
+
+Dealer Information:
+- Credit Limit: ₹{dealer.credit_limit}
+- Outstanding Balance: ₹{dealer.outstanding_balance}
+- Available Credit: ₹{dealer.credit_limit - dealer.outstanding_balance}
+
+{orders_info}
+
+Help the dealer with:
+1. Product information and recommendations
+2. Order status and history
+3. Credit and payment information
+4. General support and queries
+
+Be helpful, professional, and provide accurate information based on the context above."""
+
+        # Initialize chat with dealer-specific session
+        llm_chat = LlmChat(
+            api_key=api_key,
+            session_id=f"dealer_{dealer.id}",
+            system_message=system_message
+        ).with_model("openai", "gpt-5.1")
+        
+        # Create user message
+        user_msg = UserMessage(text=message.message)
+        
+        # Get response from AI
+        ai_response = await llm_chat.send_message(user_msg)
+        
+        return ChatResponse(response=ai_response)
+        
+    except Exception as e:
+        logger.error(f"Chat error: {str(e)}")
+        return ChatResponse(response="I apologize, but I'm having trouble processing your request right now. Please try again later or contact support.")
 
 # ============= SEED DATA ROUTE (Development only) =============
 
