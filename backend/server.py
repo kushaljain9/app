@@ -12,6 +12,7 @@ from datetime import datetime, timezone, timedelta
 import secrets
 import hashlib
 from enum import Enum
+from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
